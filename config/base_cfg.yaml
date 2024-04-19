@@ -1,3 +1,26 @@
-defaults:
-  - dataset: ??? 
-  - model: ??? 
+dataset:
+  name: LIDC
+  root_dir: /home/hyj/python_files2/Generate/Diffusion/medicaldiffusion/AAA_data/LIDC-IDRI/data/TCIA_LIDC-IDRI_processed/LIDC-IDRI_scaled_256x256x256_npy
+  image_channels: 1
+  augmentation: True
+model: 
+  name: vq_gan_3d
+  seed: 0
+  gpus: 2
+  default_root_dir: ./
+  default_root_dir_postfix: 'flair'
+  precision: 16
+  embedding_dim: 8
+  n_hiddens: 16
+  downsample: [2, 2, 2]
+  num_workers: 32
+  gradient_clip_val: 1.0
+  lr: 3e-4
+  discriminator_iter_start: 10000
+  perceptual_weight: 4
+  image_gan_weight: 1
+  video_gan_weight: 1
+  gan_feat_weight: 4
+  batch_size: 1
+  n_codes: 16384
+  accumulate_grad_batches: 1

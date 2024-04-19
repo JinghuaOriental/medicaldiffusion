@@ -1,19 +1,46 @@
-"Adapted from https://github.com/SongweiGe/TATS"
+'''
+Author: JinghuaOriental 1795185859@qq.com
+Date: 2024-04-15 10:19:30
+LastEditors: JinghuaOriental 1795185859@qq.com
+LastEditTime: 2024-04-19 15:47:11
+FilePath: /medicaldiffusion/train/train_vqgan.py
+Description: This file is used to train the VQ-GAN model. Adapted from https://github.com/SongweiGe/TATS
+'''
 
 import os
+import sys
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
+import hydra
+from omegaconf import DictConfig, open_dict
+
+from load_cfgs import load_cfgs
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from ddpm.diffusion import default
 from vq_gan_3d.model import VQGAN
 from train.callbacks import ImageLogger, VideoLogger
 from train.get_dataset import get_dataset
-import hydra
-from omegaconf import DictConfig, open_dict
 
+
+# 现在可以使用PyTorch进行分布式训练，它将使用Gloo后端
+os.environ['PL_TORCH_DISTRIBUTED_BACKEND'] = 'gloo'
 
 @hydra.main(config_path='../config', config_name='base_cfg', version_base=None)
 def run(cfg: DictConfig):
+    """ run the training process """
+    
+    # 加上模型的配置文件
+    if cfg.model.name == 'vq_gan_3d':
+        vq_gan_3d_cfg = load_cfgs('../config/model/vq_gan_3d.yaml')
+        cfg.model = {**vq_gan_3d_cfg, **cfg.model}
+    elif cfg.model.name == 'ddpm':
+        ddpm_cfg = load_cfgs('../config/model/ddpm.yaml')
+        cfg.model = {**ddpm_cfg, **cfg.model}
+    else:
+        raise NotImplementedError
+        
+    
     pl.seed_everything(cfg.model.seed)
 
     train_dataset, val_dataset, sampler = get_dataset(cfg)
@@ -29,8 +56,8 @@ def run(cfg: DictConfig):
         cfg.model.lr = accumulate * (ngpu/8.) * (bs/4.) * base_lr
         cfg.model.default_root_dir = os.path.join(
             cfg.model.default_root_dir, cfg.dataset.name, cfg.model.default_root_dir_postfix)
-    print("Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus/8) * {} (batchsize/4) * {:.2e} (base_lr)".format(
-        cfg.model.lr, accumulate, ngpu/8, bs/4, base_lr))
+    # print("Setting learning rate to {:.2e} = {} (accumulate_grad_batches) * {} (num_gpus/8) * {} (batchsize/4) * {:.2e} (base_lr)".format(cfg.model.lr, accumulate, ngpu/8, bs/4, base_lr))
+    print(f"Setting learning rate to {cfg.model.lr:.2e} = {accumulate} (accumulate_grad_batches) * {ngpu/8} (num_gpus/8) * {bs/4} (batchsize/4) * {base_lr:.2e} (base_lr)")
 
     model = VQGAN(cfg)
 
@@ -66,8 +93,7 @@ def run(cfg: DictConfig):
             if len(ckpt_file) > 0:
                 cfg.model.resume_from_checkpoint = os.path.join(
                     ckpt_folder, ckpt_file)
-                print('will start from the recent ckpt %s' %
-                      cfg.model.resume_from_checkpoint)
+                print(f'will start from the recent ckpt {cfg.model.resume_from_checkpoint}')
 
     accelerator = None
     if cfg.model.gpus > 1:
@@ -90,4 +116,5 @@ def run(cfg: DictConfig):
 
 
 if __name__ == '__main__':
-    run()
+    os.chdir(os.path.abspath(os.path.dirname(__file__)))
+    run()   # 它也没有参数
